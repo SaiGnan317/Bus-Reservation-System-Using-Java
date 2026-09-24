@@ -1,0 +1,436 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
+import java.util.List;
+
+public class BusReservationSystem {
+    private JFrame frame;
+    private CardLayout cardLayout;
+    private JPanel mainPanel;
+    private Map<String, String> users = new HashMap<>(); // Store username and password
+    private Map<String, Map<String, List<Integer>>> busSeatAvailability = new HashMap<>(); // Bus route, date, available seats
+    private List<String> bookings = new ArrayList<>(); // Store booking details with user info
+    private String currentUser = null; // Track logged-in user
+    private final int TOTAL_SEATS = 30;
+
+    public BusReservationSystem() {
+        // Initialize the frame and main panel.  This should ALWAYS be done on the EDT.
+        frame = new JFrame("Bus Reservation System");
+        cardLayout = new CardLayout();
+        mainPanel = new JPanel(cardLayout);
+
+        // Initialize bus routes and seat availability
+        initializeBusRoutes();
+
+        // Add the different panels to the main panel
+        mainPanel.add(createLoginRegisterPanel(), "LoginRegister");
+        mainPanel.add(createViewBusesPanel(), "ViewBuses");
+        mainPanel.add(createBookTicketsPanel(), "BookTickets");
+        mainPanel.add(createViewBookingsPanel(), "ViewBookings");
+        mainPanel.add(createCancelTicketsPanel(), "CancelTickets");
+
+        // Set up the frame
+        frame.add(mainPanel);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(800, 600);
+        frame.setVisible(true); // Make the frame visible
+    }
+
+    private void initializeBusRoutes() {
+        // Initialize bus routes and their available seats.
+        busSeatAvailability.put("New York to Boston", new HashMap<>());
+        busSeatAvailability.put("Chicago to Detroit", new HashMap<>());
+        busSeatAvailability.put("Los Angeles to San Francisco", new HashMap<>());
+        busSeatAvailability.put("Seattle to Portland", new HashMap<>());
+
+        // Initialize seats for some dates.
+        initializeSeatsForDate("New York to Boston", "2024-07-28");
+        initializeSeatsForDate("New York to Boston", "2024-07-29");
+        initializeSeatsForDate("Chicago to Detroit", "2024-07-28");
+        initializeSeatsForDate("Chicago to Detroit", "2024-07-30");
+        initializeSeatsForDate("Los Angeles to San Francisco", "2024-07-29");
+        initializeSeatsForDate("Los Angeles to San Francisco", "2024-08-01");
+        initializeSeatsForDate("Seattle to Portland", "2024-07-29");
+        initializeSeatsForDate("Seattle to Portland", "2024-08-02");
+    }
+
+    private void initializeSeatsForDate(String route, String date) {
+        List<Integer> seats = new ArrayList<>();
+        for (int i = 1; i <= TOTAL_SEATS; i++) {
+            seats.add(i);
+        }
+        busSeatAvailability.get(route).put(date, seats);
+    }
+
+    private JPanel createLoginRegisterPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // Username Label and Field
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        panel.add(new JLabel("Username:"), gbc);
+        gbc.gridx = 1;
+        JTextField usernameField = new JTextField(15);
+        panel.add(usernameField, gbc);
+
+        // Password Label and Field
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        panel.add(new JLabel("Password:"), gbc);
+        gbc.gridx = 1;
+        JPasswordField passwordField = new JPasswordField(15);
+        panel.add(passwordField, gbc);
+
+        // Message Label
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.gridwidth = 2;
+        JLabel messageLabel = new JLabel("", SwingConstants.CENTER);
+        panel.add(messageLabel, gbc);
+
+        // Buttons Panel
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        gbc.gridwidth = 2;
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        JButton loginButton = new JButton("Login");
+        JButton registerButton = new JButton("Register");
+
+        // Login Button Action Listener
+        loginButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                String username = usernameField.getText();
+                String password = new String(passwordField.getPassword());
+                if (users.containsKey(username) && users.get(username).equals(password)) {
+                    currentUser = username;
+                    messageLabel.setText("Login successful!");
+                    cardLayout.show(mainPanel, "ViewBuses");
+                    usernameField.setText("");
+                    passwordField.setText("");
+                } else {
+                    messageLabel.setText("Invalid username or password");
+                }
+            }
+        });
+        buttonPanel.add(loginButton);
+
+        // Register Button Action Listener
+        registerButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                String username = usernameField.getText();
+                String password = new String(passwordField.getPassword());
+                if (users.containsKey(username)) {
+                    messageLabel.setText("Username already exists");
+                } else {
+                    users.put(username, password);
+                    messageLabel.setText("Registration successful!");
+                    usernameField.setText("");
+                    passwordField.setText("");
+                }
+            }
+        });
+        buttonPanel.add(registerButton);
+        panel.add(buttonPanel, gbc);
+
+        return panel;
+    }
+
+    private JPanel createViewBusesPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Title Label
+        JLabel titleLabel = new JLabel("Available Options", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        panel.add(titleLabel, BorderLayout.NORTH);
+
+        // Options Panel
+        JPanel optionsPanel = new JPanel(new GridLayout(4, 1, 10, 10));
+        optionsPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JButton bookButton = new JButton("Book Tickets");
+        JButton viewBookingsButton = new JButton("View My Bookings");
+        JButton cancelButton = new JButton("Cancel Tickets");
+
+        // Action Listeners for the buttons.
+        bookButton.addActionListener(e -> cardLayout.show(mainPanel, "BookTickets"));
+        viewBookingsButton.addActionListener(e -> cardLayout.show(mainPanel, "ViewBookings"));
+        cancelButton.addActionListener(e -> cardLayout.show(mainPanel, "CancelTickets"));
+
+        optionsPanel.add(bookButton);
+        optionsPanel.add(viewBookingsButton);
+        optionsPanel.add(cancelButton);
+        panel.add(optionsPanel, BorderLayout.CENTER);
+
+        // Back Button
+        JButton backButton = new JButton("Back to Login");
+        backButton.addActionListener(e -> {
+            currentUser = null;
+            cardLayout.show(mainPanel, "LoginRegister");
+        });
+        panel.add(backButton, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private JPanel createBookTicketsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Title
+        JLabel titleLabel = new JLabel("Book Tickets", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        panel.add(titleLabel, BorderLayout.NORTH);
+
+        // Form Panel
+        JPanel formPanel = new JPanel(new GridLayout(4, 2, 10, 10));
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // Route
+        formPanel.add(new JLabel("Route:"));
+        JComboBox<String> routeCombo = new JComboBox<>(new String[]{
+                "New York to Boston",
+                "Chicago to Detroit",
+                "Los Angeles to San Francisco",
+                "Seattle to Portland"
+        });
+        formPanel.add(routeCombo);
+
+        // Date
+        formPanel.add(new JLabel("Date:"));
+        JComboBox<String> dateCombo = new JComboBox<>();
+        dateCombo.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    String selectedRoute = (String) routeCombo.getSelectedItem();
+                    // Store the current listener
+                    ItemListener listener = dateCombo.getItemListeners()[0];
+                    dateCombo.removeItemListener(listener); // Remove the listener temporarily
+                    dateCombo.removeAllItems();
+                    if (selectedRoute != null && busSeatAvailability.containsKey(selectedRoute)) {
+                        for (String date : busSeatAvailability.get(selectedRoute).keySet()) {
+                            dateCombo.addItem(date);
+                        }
+                    }
+                    // Re-attach the listener
+                    dateCombo.addItemListener(listener);
+                }
+            }
+        });
+        formPanel.add(dateCombo);
+
+        // Passenger Name
+        formPanel.add(new JLabel("Passenger Name:"));
+        JTextField nameField = new JTextField();
+        formPanel.add(nameField, gbc);
+
+        // Number of Tickets
+        formPanel.add(new JLabel("Number of Tickets:"));
+        JSpinner ticketSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 10, 1));
+        formPanel.add(ticketSpinner);
+
+        panel.add(formPanel, BorderLayout.CENTER);
+
+        // Initialize dateCombo
+        String defaultRoute = (String) routeCombo.getSelectedItem();
+        if (defaultRoute != null && busSeatAvailability.containsKey(defaultRoute)) {
+            for (String date : busSeatAvailability.get(defaultRoute).keySet()) {
+                dateCombo.addItem(date);
+            }
+        }
+
+        // Confirm Booking Button
+        JButton bookButton = new JButton("Confirm Booking");
+        bookButton.addActionListener(e -> {
+            String route = (String) routeCombo.getSelectedItem();
+            String date = (String) dateCombo.getSelectedItem();
+            String passengerName = nameField.getText();
+            int numTickets = (Integer) ticketSpinner.getValue();
+
+            if (passengerName.isEmpty() || date == null) {
+                JOptionPane.showMessageDialog(frame, "Please enter all details");
+                return;
+            }
+
+            if (!busSeatAvailability.containsKey(route)) {
+                JOptionPane.showMessageDialog(frame, "Invalid route selected.");
+                return;
+            }
+
+            if (!busSeatAvailability.get(route).containsKey(date)) {
+                JOptionPane.showMessageDialog(frame, "No available buses for the selected route and date.");
+                return;
+            }
+
+            List<Integer> availableSeats = busSeatAvailability.get(route).get(date);
+            if (availableSeats.size() < numTickets) {
+                JOptionPane.showMessageDialog(frame, "Not enough seats available. Available seats: " + availableSeats.size());
+                return;
+            }
+
+            StringBuilder bookingDetails = new StringBuilder();
+            bookingDetails.append("Booked ").append(numTickets).append(" ticket(s) for ").append(passengerName)
+                    .append(" on ").append(route).append(" on ").append(date).append(".  Seats: ");
+
+            List<Integer> bookedSeats = new ArrayList<>();
+            for (int i = 0; i < numTickets; i++) {
+                int seat = availableSeats.remove(0);
+                bookedSeats.add(seat);
+                bookingDetails.append(seat).append(" ");
+            }
+            bookingDetails.append(" for ").append(currentUser);
+            bookings.add(bookingDetails.toString());
+
+            busSeatAvailability.get(route).put(date, availableSeats);
+
+            JOptionPane.showMessageDialog(frame, "Booking confirmed!\n" + bookingDetails);
+            cardLayout.show(mainPanel, "ViewBuses");
+            clearBookTicketForm(routeCombo, dateCombo, nameField, ticketSpinner);
+        });
+
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.add(bookButton);
+
+        JButton backButton = new JButton("Back");
+        backButton.addActionListener(e -> cardLayout.show(mainPanel, "ViewBuses"));
+        buttonPanel.add(backButton);
+
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private void clearBookTicketForm(JComboBox<String> routeCombo, JComboBox<String> dateCombo, JTextField nameField, JSpinner ticketSpinner) {
+        routeCombo.setSelectedIndex(0);
+        dateCombo.removeAllItems();
+        nameField.setText("");
+        ticketSpinner.setValue(1);
+    }
+
+    private JPanel createViewBookingsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Title
+        JLabel titleLabel = new JLabel("My Bookings", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        panel.add(titleLabel, BorderLayout.NORTH);
+
+        // Bookings List
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        if (currentUser != null) {
+            for (String booking : bookings) {
+                if (booking.contains("for " + currentUser)) {
+                    listModel.addElement(booking);
+                }
+            }
+        }
+        JList<String> bookingsList = new JList<>(listModel);
+        panel.add(new JScrollPane(bookingsList), BorderLayout.CENTER);
+
+        // Back Button
+        JButton backButton = new JButton("Back");
+        backButton.addActionListener(e -> cardLayout.show(mainPanel, "ViewBuses"));
+        panel.add(backButton, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    private JPanel createCancelTicketsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Title
+        JLabel titleLabel = new JLabel("Cancel Tickets", SwingConstants.CENTER);
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        panel.add(titleLabel, BorderLayout.NORTH);
+
+        // Bookings List
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        if (currentUser != null) {
+            for (String booking : bookings) {
+                if (booking.contains("for " + currentUser)) {
+                    listModel.addElement(booking);
+                }
+            }
+        }
+        JList<String> bookingsList = new JList<>(listModel);
+        panel.add(new JScrollPane(bookingsList), BorderLayout.CENTER);
+
+        // Cancel Button and Back Button
+        JPanel buttonPanel = new JPanel();
+        JButton cancelButton = new JButton("Cancel Selected");
+        cancelButton.addActionListener(e -> {
+            int selectedIndex = bookingsList.getSelectedIndex();
+            if (selectedIndex != -1) {
+                String bookingToCancel = listModel.getElementAt(selectedIndex);
+                String route = null;
+                String date = null;
+                List<Integer> canceledSeats = new ArrayList<>();
+
+                try {
+                    String[] parts = bookingToCancel.split(" on ");
+                    route = parts[parts.length - 2];
+                    String[] parts2 = parts[parts.length - 1].split("\\.  Seats: ");
+                    date = parts2[0];
+                    String[] seatNumbers = parts2[1].split(" ");
+                    for (String seatStr : seatNumbers) {
+                        if (!seatStr.trim().isEmpty()) {
+                            canceledSeats.add(Integer.parseInt(seatStr.trim()));
+                        }
+                    }
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(frame, "Error parsing booking details.  Cannot cancel.");
+                    return;
+                }
+
+                if (route != null && date != null) {
+                    Map<String, List<Integer>> routeDateMap = busSeatAvailability.get(route);
+                    if (routeDateMap != null) {
+                        List<Integer> availableSeats = routeDateMap.get(date);
+                        if (availableSeats != null) {
+                            availableSeats.addAll(canceledSeats);
+                            Collections.sort(availableSeats);
+                            busSeatAvailability.get(route).put(date, availableSeats);
+                        }
+                    }
+                    listModel.remove(selectedIndex);
+                    bookings.remove(selectedIndex);
+                    JOptionPane.showMessageDialog(frame, "Booking canceled!");
+                } else {
+                    JOptionPane.showMessageDialog(frame, "Error: Could not find route and date information.");
+                }
+            } else {
+                JOptionPane.showMessageDialog(frame, "Please select a booking to cancel");
+            }
+        });
+        buttonPanel.add(cancelButton);
+
+        JButton backButton = new JButton("Back");
+        backButton.addActionListener(e -> cardLayout.show(mainPanel, "ViewBuses"));
+        buttonPanel.add(backButton, BorderLayout.SOUTH);
+
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    public static void main(String[] args) {
+        //  Use invokeLater to create and show the GUI on the event dispatch thread.
+        SwingUtilities.invokeLater(() -> {
+            try {
+                new BusReservationSystem();  // Create the GUI.
+            } catch (Exception e) {
+                e.printStackTrace(); //  VERY important:  Print any exceptions that occur during GUI creation.
+                //  If you don't do this, you might not see any error messages, and the GUI will just fail silently.
+                System.err.println("Exception occurred during GUI initialization:"); //  Print to standard error
+            }
+        });
+    }
+}
